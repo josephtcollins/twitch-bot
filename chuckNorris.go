@@ -12,8 +12,7 @@ type chuckNorrisJoke struct {
 	Value string `json:"value"`
 }
 
-func chuckNorrisJokeHandler(conn net.Conn, messageReceived string, currentChannel string) {
-
+func chuckNorrisJokeListener(conn net.Conn, messageReceived string, currentChannel string) {
 	if strings.Contains(messageReceived, "!chucknorris") {
 		resp, err := http.Get("https://api.chucknorris.io/jokes/random")
 		if err != nil {

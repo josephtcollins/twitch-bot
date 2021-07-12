@@ -43,23 +43,28 @@ func formattedOutput(str string) string {
 	return t.Format("2006-01-02T15:04:05.000Z") + " twitchbot$ " + str
 }
 
-func handleConnectionUpdates(conn net.Conn, twitchChannel string, customHandler func(net.Conn, string, string)) {
+func handlePing(conn net.Conn) {
+	writeToConn(conn, "PONG")
+	fmt.Println(formattedOutput("PONG"))
+}
+
+func handleConnectionUpdates(conn net.Conn, twitchChannel string, runCustomListener func(net.Conn, string, string)) {
 	tp := textproto.NewReader(bufio.NewReader(conn))
 
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
-			panic(err)
+			fmt.Println("Something went wrong:", err)
 		}
 
 		fmt.Fprintln(os.Stdout, formattedOutput(line))
 
 		if strings.HasPrefix(line, "PING") {
-			writeToConn(conn, "PONG")
-			fmt.Println(formattedOutput("PONG"))
+			handlePing(conn)
 		}
 
-		customHandler(conn, line, twitchChannel)
+		// Run additional listening-based logic specified at implementation level
+		runCustomListener(conn, line, twitchChannel)
 	}
 }
 
@@ -109,11 +114,11 @@ func handleUserInput(conn net.Conn, defaultUsername string) {
 	}
 }
 
-func runTwitchBot(defaultUsername string, OAUTHToken string, customHandler func(net.Conn, string, string)) {
+func runTwitchBot(defaultUsername string, OAUTHToken string, runCustomListener func(net.Conn, string, string)) {
 	conn := connect()
 	login(conn, defaultUsername, OAUTHToken)
 
-	go handleConnectionUpdates(conn, defaultUsername, customHandler)
+	go handleConnectionUpdates(conn, defaultUsername, runCustomListener)
 	time.Sleep(time.Second)
 
 	fmt.Println(getBanner() + welcomeMessage)
