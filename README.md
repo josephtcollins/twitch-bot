@@ -22,6 +22,7 @@ The bot application should be able to:
 - [x] Avoid premature disconnections by handling Twitch courier ping / pong requests - a request is sent every five minutes from twitch with PING, expects PONG, otherwise terminates.
 - [ ] Publicly reply to a user-issued string command within a channel (!YOUR_COMMAND_NAME).
 - [ ] Reply to the "!chucknorris" command by dynamically returning a random fact about Chuck Norris using the [Chuck Norris API](https://api.chucknorris.io).
+- [ ] Add gif to readme
 
 ### Qualities
 

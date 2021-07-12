@@ -1,7 +1,9 @@
 package main
 
-import "os"
+import (
+	"os"
+)
 
 func main() {
-	runTwitchBot(os.Getenv("TWITCH_USERNAME"), os.Getenv("TWITCH_OAUTH_TOKEN"))
+	runTwitchBot(os.Getenv("TWITCH_USERNAME"), os.Getenv("TWITCH_OAUTH_TOKEN"), chuckNorrisJokeHandler)
 }
