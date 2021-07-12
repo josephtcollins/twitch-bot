@@ -12,9 +12,10 @@ import (
 
 func getSupportedActions() map[string]string {
 	return map[string]string{
-		"join": "JOIN",
-		"send": "PRIVMSG",
-		"quit": "QUIT",
+		"join":    "JOIN",
+		"send":    "PRIVMSG",
+		"whisper": "WHISPER",
+		"quit":    "QUIT",
 	}
 }
 
@@ -36,6 +37,8 @@ func disconnect(conn net.Conn) {
 func login(conn net.Conn, defaultUsername string, OAUTHToken string) {
 	writeToConn(conn, "PASS "+OAUTHToken)
 	writeToConn(conn, "NICK "+defaultUsername)
+	// allows whispers to be received
+	writeToConn(conn, "CAP REQ :twitch.tv/commands")
 }
 
 func writeToConn(conn net.Conn, message string) {
@@ -62,15 +65,12 @@ func handleConnectionUpdates(conn net.Conn) {
 			fmt.Println(formattedOutput("PONG"))
 			writeToConn(conn, "PONG")
 		}
-
-		if strings.Contains(status, "!chucknorris") {
-			fmt.Println("Do chuck norris logic ghere")
-		}
 	}
 }
 
-func handleUserInput(conn net.Conn) {
+func handleUserInput(conn net.Conn, defaultUsername string) {
 	reader := bufio.NewReader(os.Stdin)
+	channel := defaultUsername
 
 	for {
 		fmt.Print(formattedOutput(""))
@@ -87,9 +87,19 @@ func handleUserInput(conn net.Conn) {
 
 		switch getSupportedActions()[action] {
 		case "JOIN":
-			writeToConn(conn, "JOIN "+formattedContent)
+			message := "JOIN #" + formattedContent
+			channel = formattedContent
+			fmt.Println(formattedOutput(message))
+			writeToConn(conn, message)
 		case "PRIVMSG":
-			message := "PRIVMSG #" + "banjomanjo1 :" + formattedContent
+			message := "PRIVMSG #" + channel + " :" + formattedContent
+			fmt.Println(formattedOutput(message))
+			writeToConn(conn, message)
+		case "WHISPER":
+			// The below is the apparent format for a whisper
+			// PRIVMSG <channel> :/w <user> testing....
+			// I'm likely getting blocked either for being a bot or hitting rate limits
+			message := "PRIVMSG " + formattedContent
 			fmt.Println(formattedOutput(message))
 			writeToConn(conn, message)
 		case "QUIT":
@@ -105,10 +115,9 @@ func runTwitchBot(defaultUsername string, OAUTHToken string) {
 	conn := connect()
 	login(conn, defaultUsername, OAUTHToken)
 
-	fmt.Println(formattedOutput("Joining default channel: " + defaultUsername))
+	// fmt.Println(formattedOutput("Joining default channel: " + defaultUsername))
 	writeToConn(conn, "JOIN #"+defaultUsername)
-	writeToConn(conn, "PRIVMSG #banjomanjo1 :this is an example message")
 
 	go handleConnectionUpdates(conn)
-	handleUserInput(conn)
+	handleUserInput(conn, defaultUsername)
 }
