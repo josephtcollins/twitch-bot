@@ -1,8 +1,11 @@
+![tbot](https://user-images.githubusercontent.com/25406248/125493306-565d7b6c-7582-4a74-a22b-639f33681b5b.gif)
+
 ## Overview
 
 An automated [Twitch](https://dev.twitch.tv/docs/irc) chat bot console application that runs from a command line interface (CLI).
 
 Implemented with a Chuck Norris random fact function; listens for "!chucknorris" in currently joined chat room and sends a random fun fact about chuck norris in return.
+
 
 ## How It Works
 
