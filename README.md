@@ -2,9 +2,13 @@
 
 An automated [Twitch](https://dev.twitch.tv/docs/irc) chat bot console application that runs from a command line interface (CLI).
 
+Implemented with a Chuck Norris random fact function; listens for "!chucknorris" in currently joined chat room and sends a random fun fact about chuck norris in return.
+
 ## How It Works
 
-TBW
+1. [Download and Install Go](https://golang.org/doc/install).
+2. Export values for `TWITCH_USERNAME` and `TWITCH_OAUTH_TOKEN` (can generate an oauth token [here](https://twitchapps.com/tmi/)).
+3. `make run`.
 
 ## Development
 
@@ -23,6 +27,7 @@ The bot application should be able to:
 - [ ] Publicly reply to a user-issued string command within a channel (!YOUR_COMMAND_NAME).
 - [ ] Reply to the "!chucknorris" command by dynamically returning a random fact about Chuck Norris using the [Chuck Norris API](https://api.chucknorris.io).
 - [ ] Add gif to readme
+- [ ] Add Table of Contents
 
 ### Qualities
 
@@ -35,3 +40,12 @@ The bot application should be able to:
 ### Notes
 
 There are [limits](https://dev.twitch.tv/docs/irc/guide#command--message-limits) of the number of IRC commands or messages you are allowed to send to the server. If you exceed these limits, you are locked out of chat for 30 minutes.
+
+- Connect with ssl
+- Complete make file (run, test, etc...)
+- Fix wonky printing of timestamp/name
+
+### Other Potential Enhancements
+
+- Split CLI/GUI into two windows, one for reads and one for writes, for a better UX.
+-

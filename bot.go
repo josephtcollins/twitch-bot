@@ -6,6 +6,7 @@ import (
 	"net/textproto"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,8 +18,8 @@ Available commands:
   leave - leaves current channel
   send <message> - once in a channel
   whisper <user> <message>
-  quit - will exit program
-	help - for more info
+  quit - exits program
+  help - for more info and current channel
 `
 
 func getSupportedActions() map[string]string {
@@ -47,13 +48,18 @@ func handlePing(c client) {
 	fmt.Println(formattedOutput("PONG"))
 }
 
-func handleReader(c client, twitchChannel string, runCustomListener func(client, string, string)) {
+func handleReader(c client, wg *sync.WaitGroup, twitchChannel string, runCustomListener func(string, string) string) {
+	defer func() {
+		wg.Done()
+		c.read <- "QUIT"
+	}()
+
 	tp := textproto.NewReader(bufio.NewReader(c.conn))
 
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
-			fmt.Println("Something went wrong:", err)
+			return
 		}
 
 		// shorten ouput from channel
@@ -71,11 +77,15 @@ func handleReader(c client, twitchChannel string, runCustomListener func(client,
 		}
 
 		// Run additional listening-based logic specified at implementation level
-		runCustomListener(c, line, twitchChannel)
+		messages := runCustomListener(line, twitchChannel)
+		if len(messages) > 1 {
+			printAndWriteMessage(messages, c)
+		}
 	}
 }
 
-func handleWriter(c client, defaultUsername string) {
+func handleWriter(c client, wg *sync.WaitGroup, defaultUsername string) {
+	defer wg.Done()
 	reader := bufio.NewReader(os.Stdin)
 	twitchChannel := defaultUsername
 
@@ -99,6 +109,7 @@ func handleWriter(c client, defaultUsername string) {
 			printAndWriteMessage(message, c)
 		case "LEAVE":
 			message := "PART #" + twitchChannel
+			twitchChannel = ""
 			printAndWriteMessage(message, c)
 		case "PRIVMSG":
 			message := "PRIVMSG #" + twitchChannel + " :" + formattedContent
@@ -111,7 +122,8 @@ func handleWriter(c client, defaultUsername string) {
 			printAndWriteMessage(message, c)
 		case "QUIT":
 			fmt.Println("Exiting program.")
-			c.disconnect()
+			c.writeToConn("QUIT Bye")
+			return
 		case "HELP":
 			fmt.Println(welcomeMessage)
 			fmt.Println("Current channel:", twitchChannel)
@@ -121,17 +133,32 @@ func handleWriter(c client, defaultUsername string) {
 	}
 }
 
-func runTwitchBot(defaultChannel string, OAUTHToken string, runCustomListener func(client, string, string)) {
+func runTwitchBot(defaultChannel string, OAUTHToken string, runCustomListener func(string, string) string) {
 	client := newClient()
 	client.login(defaultChannel, OAUTHToken)
 
-	printWelcome()
-	go handleReader(client, defaultChannel, runCustomListener)
-	go handleWriter(client, defaultChannel)
+	var wg sync.WaitGroup
 
+	printWelcome()
+
+	wg.Add(1)
+	go handleReader(client, &wg, defaultChannel, runCustomListener)
+
+	wg.Add(1)
+	go handleWriter(client, &wg, defaultChannel)
+
+	printReads(client)
+
+	wg.Wait()
+}
+
+func printReads(c client) {
 	for {
-		msg := <-client.read
-		fmt.Fprintln(os.Stdout, msg)
+		msg := <-c.read
+		if msg == "QUIT" {
+			return
+		}
+		fmt.Println(msg)
 	}
 }
 
