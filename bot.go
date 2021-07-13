@@ -6,7 +6,6 @@ import (
 	"net/textproto"
 	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -39,8 +38,21 @@ func printAndWriteMessage(message string, c client) {
 }
 
 func formattedOutput(str string) string {
-	t := time.Now()
-	return t.Format("2006-01-02T15:04:05.000Z") + " twitchbot$ " + str
+	lines := removeRedundantText(str)
+	return time.Now().Format("2006-01-02 15:04:05") + " $ " + lines
+}
+
+// Lines from twitch often have redundant text in the format of:
+// :r1verwater!r1verwater@r1verwater.tmi.twitch.tv
+// This func distills that to "":r1verwater"
+func removeRedundantText(str string) string {
+	strArr := strings.Split(str, " ")
+	for i, l := range strArr {
+		if strings.Contains(l, "tmi.twitch.tv") {
+			strArr[i] = strings.Split(l, "!")[0]
+		}
+	}
+	return strings.Join(strArr, " ")
 }
 
 func handlePing(c client) {
@@ -48,9 +60,8 @@ func handlePing(c client) {
 	fmt.Println(formattedOutput("PONG"))
 }
 
-func handleReader(c client, wg *sync.WaitGroup, twitchChannel string, runCustomListener func(string, string) string) {
+func handleReader(c client, twitchChannel string, customListener func(string, string) []string) {
 	defer func() {
-		wg.Done()
 		c.read <- "QUIT"
 	}()
 
@@ -62,63 +73,56 @@ func handleReader(c client, wg *sync.WaitGroup, twitchChannel string, runCustomL
 			return
 		}
 
-		// shorten ouput from channel
-		lines := strings.Split(line, " ")
-		for i, l := range lines {
-			if strings.Contains(l, "tmi.twitch.tv") {
-				lines[i] = strings.Split(l, "!")[0]
-			}
-		}
-
-		c.read <- formattedOutput(strings.Join(lines, " "))
+		c.read <- formattedOutput(line)
 
 		if strings.HasPrefix(line, "PING") {
 			handlePing(c)
 		}
 
 		// Run additional listening-based logic specified at implementation level
-		messages := runCustomListener(line, twitchChannel)
-		if len(messages) > 1 {
-			printAndWriteMessage(messages, c)
+		messages := customListener(line, twitchChannel)
+		for _, message := range messages {
+			if len(message) > 0 {
+				printAndWriteMessage(message, c)
+			}
 		}
 	}
 }
 
-func handleWriter(c client, wg *sync.WaitGroup, defaultUsername string) {
-	defer wg.Done()
+func handleWriter(c client, defaultUsername string) {
 	reader := bufio.NewReader(os.Stdin)
 	twitchChannel := defaultUsername
 
 	for {
+		// doesn't work reliably
+		// attempting to get reliable leading text for write
+		time.Sleep(time.Millisecond * 250)
 		fmt.Print(formattedOutput(""))
+
 		text, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 
-		trimmedText := strings.Trim(text, "\n")
-		splitText := strings.Split(trimmedText, " ")
+		action, content := inferredActionAndContent(text)
 
-		action, content := splitText[:1][0], splitText[1:]
-		formattedContent := strings.Join(content, " ")
-
-		switch getSupportedActions()[action] {
+		switch getSupportedActions()[strings.ToLower(action)] {
 		case "JOIN":
-			message := "JOIN #" + formattedContent
-			twitchChannel = formattedContent
+			message := "JOIN #" + content
+			twitchChannel = content
 			printAndWriteMessage(message, c)
 		case "LEAVE":
 			message := "PART #" + twitchChannel
 			twitchChannel = ""
 			printAndWriteMessage(message, c)
 		case "PRIVMSG":
-			message := "PRIVMSG #" + twitchChannel + " :" + formattedContent
+			message := "PRIVMSG #" + twitchChannel + " :" + content
 			printAndWriteMessage(message, c)
 		case "WHISPER":
 			// The below is the apparent format for a whisper
 			// PRIVMSG <channel> :/w <user> testing....
 			// I'm likely getting blocked either for being a bot or hitting rate limits
-			message := "PRIVMSG " + formattedContent
+			message := "PRIVMSG " + content
 			printAndWriteMessage(message, c)
 		case "QUIT":
 			fmt.Println("Exiting program.")
@@ -133,23 +137,23 @@ func handleWriter(c client, wg *sync.WaitGroup, defaultUsername string) {
 	}
 }
 
-func runTwitchBot(defaultChannel string, OAUTHToken string, runCustomListener func(string, string) string) {
+func inferredActionAndContent(text string) (string, string) {
+	trimmedText := strings.Trim(text, "\r\n")
+	splitText := strings.Split(trimmedText, " ")
+	action, content := splitText[:1][0], splitText[1:]
+
+	return action, strings.Join(content, " ")
+}
+
+func runTwitchBot(defaultChannel string, OAUTHToken string, customListener func(string, string) []string) {
 	client := newClient()
 	client.login(defaultChannel, OAUTHToken)
 
-	var wg sync.WaitGroup
-
 	printWelcome()
 
-	wg.Add(1)
-	go handleReader(client, &wg, defaultChannel, runCustomListener)
-
-	wg.Add(1)
-	go handleWriter(client, &wg, defaultChannel)
-
+	go handleReader(client, defaultChannel, customListener)
+	go handleWriter(client, defaultChannel)
 	printReads(client)
-
-	wg.Wait()
 }
 
 func printReads(c client) {
