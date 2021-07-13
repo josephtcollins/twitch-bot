@@ -30,15 +30,17 @@ var supportedActions = map[string]string{
 	"help":    "HELP",
 }
 
-func runTwitchBot(defaultChannel string, OAUTHToken string, customListener func(string, string) []string) {
+func runTwitchBot(username string, OAUTHToken string, customListener func(string, string) []string) {
+	fmt.Println("Starting Twitch Bot...")
 	client := newClient()
-	client.login(defaultChannel, OAUTHToken)
 
 	printWelcome()
 
-	go handleReader(client, defaultChannel, customListener)
-	go handleWriter(client, defaultChannel)
-	printReads(client)
+	go client.login(username, OAUTHToken)
+	go handleReader(client, username, customListener)
+	go handleWriter(client, username)
+
+	channelsUpdated(client)
 }
 
 func printWelcome() {
@@ -47,7 +49,7 @@ func printWelcome() {
 	fmt.Println(Banner + welcomeMessage)
 }
 
-func handleReader(c client, twitchChannel string, customListener func(string, string) []string) {
+func handleReader(c client, username string, customListener func(string, string) []string) {
 	defer func() {
 		c.read <- "QUIT"
 	}()
@@ -67,7 +69,7 @@ func handleReader(c client, twitchChannel string, customListener func(string, st
 		}
 
 		// Run additional listening-based logic specified at implementation level
-		messages := customListener(line, twitchChannel)
+		messages := customListener(line, username)
 		for _, message := range messages {
 			if len(message) > 0 {
 				printAndWriteMessage(message, c)
@@ -76,13 +78,13 @@ func handleReader(c client, twitchChannel string, customListener func(string, st
 	}
 }
 
-func handleWriter(c client, defaultUsername string) {
+func handleWriter(c client, username string) {
 	reader := bufio.NewReader(os.Stdin)
-	twitchChannel := defaultUsername
+	twitchChannel := username
 
 	for {
-		// doesn't work reliably
 		// attempting to get reliable leading text for write
+		// doesn't work reliably
 		time.Sleep(time.Millisecond * 250)
 		fmt.Print(formattedOutput(""))
 
@@ -91,10 +93,11 @@ func handleWriter(c client, defaultUsername string) {
 			fmt.Fprintln(os.Stderr, err)
 		}
 
-		action, content := inferredActionAndContent(text)
+		action, content := splitFirstWordFromRest(text)
 
 		switch supportedActions[strings.ToLower(action)] {
 		case "JOIN":
+			printAndWriteMessage("PART #"+twitchChannel, c)
 			message := "JOIN #" + content
 			twitchChannel = content
 			printAndWriteMessage(message, c)
@@ -106,25 +109,24 @@ func handleWriter(c client, defaultUsername string) {
 			message := "PRIVMSG #" + twitchChannel + " :" + content
 			printAndWriteMessage(message, c)
 		case "WHISPER":
-			// The below is the apparent format for a whisper
-			// PRIVMSG <channel> :/w <user> testing....
 			// I'm likely getting blocked either for being a bot or hitting rate limits
-			message := "PRIVMSG " + content
+			receivingUser, text := splitFirstWordFromRest(content)
+			message := fmt.Sprintf("PRIVMSG #%s :/w %s %s", username, receivingUser, text)
 			printAndWriteMessage(message, c)
 		case "QUIT":
 			fmt.Println("Exiting program.")
-			c.writeToConn("QUIT Bye")
+			printAndWriteMessage("QUIT Goodbye", c)
 			return
 		case "HELP":
 			fmt.Println(welcomeMessage)
 			fmt.Println("Current channel:", twitchChannel)
 		default:
-			fmt.Println("Command not recognized.")
+			fmt.Println("Command not recognized! Type \"help\" for info.")
 		}
 	}
 }
 
-func inferredActionAndContent(text string) (string, string) {
+func splitFirstWordFromRest(text string) (string, string) {
 	trimmedText := strings.Trim(text, "\r\n")
 	splitText := strings.Split(trimmedText, " ")
 	action, content := splitText[:1][0], splitText[1:]
@@ -132,19 +134,23 @@ func inferredActionAndContent(text string) (string, string) {
 	return action, strings.Join(content, " ")
 }
 
-func printReads(c client) {
+func channelsUpdated(c client) {
 	for {
-		msg := <-c.read
-		if msg == "QUIT" {
-			return
+		select {
+		case readMessage := <-c.read:
+			if readMessage == "QUIT" {
+				return
+			}
+			fmt.Println(readMessage)
+		case writeMessage := <-c.write:
+			c.writeToConn(writeMessage)
 		}
-		fmt.Println(msg)
 	}
 }
 
 func printAndWriteMessage(message string, c client) {
 	fmt.Println(formattedOutput(message))
-	c.writeToConn(message)
+	c.write <- message
 }
 
 func formattedOutput(str string) string {

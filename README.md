@@ -39,7 +39,7 @@ The bot application should be able to:
 - [x] Read a channel.
 - [x] Read a private message.
 - [x] Write to a channel
-- [ ] Reply to a private message.
+- [x] Reply to a private message.
 - [x] Avoid premature disconnections by handling Twitch courier ping / pong requests - a request is sent every five minutes from twitch with PING, expects PONG, otherwise terminates.
 - [x] Publicly reply to a user-issued string command within a channel (!YOUR_COMMAND_NAME).
 - [x] Reply to the "!chucknorris" command by dynamically returning a random fact about Chuck Norris using the [Chuck Norris API](https://api.chucknorris.io).
@@ -48,8 +48,8 @@ The bot application should be able to:
 
 ### Qualities
 
-- [ ] All interactions in this project are asynchronous.
-- [ ] The application accounts for Twitch API rate limits. You can increase limits on your bot by becoming ["known" or "verified"](https://dev.twitch.tv/docs/irc/guide#known-and-verified-bots), but it looks like that [verification process is currently paused](https://discuss.dev.twitch.tv/t/an-update-for-the-delayed-bot-verification-request-process/32325).
+- [x] All interactions in this project are asynchronous.
+- [x] The application accounts for Twitch API rate limits. You can increase limits on your bot by becoming ["known" or "verified"](https://dev.twitch.tv/docs/irc/guide#known-and-verified-bots), but it looks like that [verification process is currently paused](https://discuss.dev.twitch.tv/t/an-update-for-the-delayed-bot-verification-request-process/32325).
 - [x] The application does not exit prematurely.
 - [x] The project is appropriately documented.
 - [ ] The project has 100% test coverage. (WIP)
@@ -60,6 +60,7 @@ There are [limits](https://dev.twitch.tv/docs/irc/guide#command--message-limits)
 
 ### Other Potential Enhancements
 
-- Split CLI/GUI into two windows, one for reads and one for writes, for a better UX.
-- Handle empty return "command not found" and general other unrecognized command wonkiness.
+- Split CLI/GUI into two windows, one for reads and one for writes, for a better UX (there are good open-source projects for this).
 - Fix wonky printing of timestamp/name.
+- Make the interactions more like an actual chat interface.
+- Attempt to reconnect if connection fails.
