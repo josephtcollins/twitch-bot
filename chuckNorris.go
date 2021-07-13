@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 )
@@ -12,7 +11,7 @@ type chuckNorrisJoke struct {
 	Value string `json:"value"`
 }
 
-func chuckNorrisJokeListener(conn net.Conn, messageReceived string, currentChannel string) {
+func chuckNorrisJokeListener(c client, messageReceived string, currentChannel string) {
 	if strings.Contains(messageReceived, "!chucknorris") {
 		resp, err := http.Get("https://api.chucknorris.io/jokes/random")
 		if err != nil {
@@ -26,6 +25,6 @@ func chuckNorrisJokeListener(conn net.Conn, messageReceived string, currentChann
 		}
 
 		message := "PRIVMSG #" + currentChannel + " :" + joke.Value
-		printAndWriteMessage(message, conn)
+		printAndWriteMessage(message, c)
 	}
 }

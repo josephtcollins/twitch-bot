@@ -3,14 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"net"
 	"net/textproto"
 	"os"
 	"strings"
 	"time"
 )
 
-var welcomeMessage string = `
+const welcomeMessage = `
 This is a twitch chat bot.
 
 Available commands:
@@ -33,9 +32,9 @@ func getSupportedActions() map[string]string {
 	}
 }
 
-func printAndWriteMessage(message string, conn net.Conn) {
+func printAndWriteMessage(message string, c client) {
 	fmt.Println(formattedOutput(message))
-	writeToConn(conn, message)
+	c.writeToConn(message)
 }
 
 func formattedOutput(str string) string {
@@ -43,13 +42,13 @@ func formattedOutput(str string) string {
 	return t.Format("2006-01-02T15:04:05.000Z") + " twitchbot$ " + str
 }
 
-func handlePing(conn net.Conn) {
-	writeToConn(conn, "PONG")
+func handlePing(c client) {
+	c.writeToConn("PONG")
 	fmt.Println(formattedOutput("PONG"))
 }
 
-func handleConnectionUpdates(conn net.Conn, twitchChannel string, runCustomListener func(net.Conn, string, string)) {
-	tp := textproto.NewReader(bufio.NewReader(conn))
+func handleReader(c client, twitchChannel string, runCustomListener func(client, string, string)) {
+	tp := textproto.NewReader(bufio.NewReader(c.conn))
 
 	for {
 		line, err := tp.ReadLine()
@@ -57,18 +56,26 @@ func handleConnectionUpdates(conn net.Conn, twitchChannel string, runCustomListe
 			fmt.Println("Something went wrong:", err)
 		}
 
-		fmt.Fprintln(os.Stdout, formattedOutput(line))
+		// shorten ouput from channel
+		lines := strings.Split(line, " ")
+		for i, l := range lines {
+			if strings.Contains(l, "tmi.twitch.tv") {
+				lines[i] = strings.Split(l, "!")[0]
+			}
+		}
+
+		c.read <- formattedOutput(strings.Join(lines, " "))
 
 		if strings.HasPrefix(line, "PING") {
-			handlePing(conn)
+			handlePing(c)
 		}
 
 		// Run additional listening-based logic specified at implementation level
-		runCustomListener(conn, line, twitchChannel)
+		runCustomListener(c, line, twitchChannel)
 	}
 }
 
-func handleUserInput(conn net.Conn, defaultUsername string) {
+func handleWriter(c client, defaultUsername string) {
 	reader := bufio.NewReader(os.Stdin)
 	twitchChannel := defaultUsername
 
@@ -89,22 +96,22 @@ func handleUserInput(conn net.Conn, defaultUsername string) {
 		case "JOIN":
 			message := "JOIN #" + formattedContent
 			twitchChannel = formattedContent
-			printAndWriteMessage(message, conn)
+			printAndWriteMessage(message, c)
 		case "LEAVE":
 			message := "PART #" + twitchChannel
-			printAndWriteMessage(message, conn)
+			printAndWriteMessage(message, c)
 		case "PRIVMSG":
 			message := "PRIVMSG #" + twitchChannel + " :" + formattedContent
-			printAndWriteMessage(message, conn)
+			printAndWriteMessage(message, c)
 		case "WHISPER":
 			// The below is the apparent format for a whisper
 			// PRIVMSG <channel> :/w <user> testing....
 			// I'm likely getting blocked either for being a bot or hitting rate limits
 			message := "PRIVMSG " + formattedContent
-			printAndWriteMessage(message, conn)
+			printAndWriteMessage(message, c)
 		case "QUIT":
 			fmt.Println("Exiting program.")
-			disconnect(conn)
+			c.disconnect()
 		case "HELP":
 			fmt.Println(welcomeMessage)
 			fmt.Println("Current channel:", twitchChannel)
@@ -114,17 +121,22 @@ func handleUserInput(conn net.Conn, defaultUsername string) {
 	}
 }
 
-func runTwitchBot(defaultUsername string, OAUTHToken string, runCustomListener func(net.Conn, string, string)) {
-	conn := connect()
-	login(conn, defaultUsername, OAUTHToken)
+func runTwitchBot(defaultChannel string, OAUTHToken string, runCustomListener func(client, string, string)) {
+	client := newClient()
+	client.login(defaultChannel, OAUTHToken)
 
-	go handleConnectionUpdates(conn, defaultUsername, runCustomListener)
+	printWelcome()
+	go handleReader(client, defaultChannel, runCustomListener)
+	go handleWriter(client, defaultChannel)
+
+	for {
+		msg := <-client.read
+		fmt.Fprintln(os.Stdout, msg)
+	}
+}
+
+func printWelcome() {
+	// delay one second for UX
 	time.Sleep(time.Second)
-
-	fmt.Println(getBanner() + welcomeMessage)
-
-	fmt.Println(formattedOutput("Joining default channel: " + defaultUsername))
-	writeToConn(conn, "JOIN #"+defaultUsername)
-
-	handleUserInput(conn, defaultUsername)
+	fmt.Println(Banner + welcomeMessage)
 }

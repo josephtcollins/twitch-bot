@@ -6,30 +6,39 @@ import (
 	"os"
 )
 
-// add type and make receivers
+type client struct {
+	conn  net.Conn
+	read  chan string
+	write chan string
+}
 
-func connect() net.Conn {
+func newClient() client {
 	conn, err := net.Dial("tcp", "irc.chat.twitch.tv:6667")
 
 	// exit program since initial set up failed
 	if err != nil {
 		panic(err)
 	}
-	return conn
+
+	return client{
+		conn:  conn,
+		read:  make(chan string),
+		write: make(chan string),
+	}
 }
 
-func disconnect(conn net.Conn) {
-	writeToConn(conn, "QUIT Bye")
+func (c client) disconnect() {
+	c.writeToConn("QUIT Bye")
 	os.Exit(0)
 }
 
-func login(conn net.Conn, defaultUsername string, OAUTHToken string) {
-	writeToConn(conn, "PASS "+OAUTHToken)
-	writeToConn(conn, "NICK "+defaultUsername)
+func (c client) login(defaultUsername string, OAUTHToken string) {
+	c.writeToConn("PASS " + OAUTHToken)
+	c.writeToConn("NICK " + defaultUsername)
 	// allows whispers to be received
-	writeToConn(conn, "CAP REQ :twitch.tv/commands")
+	c.writeToConn("CAP REQ :twitch.tv/commands")
 }
 
-func writeToConn(conn net.Conn, message string) {
-	fmt.Fprintf(conn, "%s\r\n", message)
+func (c client) writeToConn(message string) {
+	fmt.Fprintf(c.conn, "%s\r\n", message)
 }
