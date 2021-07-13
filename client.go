@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -13,10 +14,11 @@ type client struct {
 }
 
 func newClient() client {
-	conn, err := net.Dial("tcp", "irc.chat.twitch.tv:6667")
+	// using nil as third param for default tls config
+	conn, err := tls.Dial("tcp", "irc.chat.twitch.tv:6697", nil)
 
-	// exit program since initial set up failed
 	if err != nil {
+		// exit program since initial set up failed
 		panic(err)
 	}
 
