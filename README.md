@@ -2,6 +2,7 @@
 
 - [Overview](#overview)
 - [How It Works](#how-it-works)
+  - [Testing](#testing)
 - [Development](#development)
   - [Requirements](#requirements)
   - [Qualities](#qualities)
@@ -19,6 +20,12 @@ Implemented with a Chuck Norris random fact function; listens for "!chucknorris"
 1. [Download and Install Go](https://golang.org/doc/install).
 2. Export values for `TWITCH_USERNAME` and `TWITCH_OAUTH_TOKEN` (can quickly generate an oauth token [here](https://twitchapps.com/tmi/)).
 3. `make run`.
+
+### Testing
+
+`make test` - to test
+
+`make cover` - to test w/ coverge results
 
 ## Development
 

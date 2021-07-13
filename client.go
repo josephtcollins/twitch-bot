@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"os"
 )
 
 type client struct {
@@ -27,11 +26,6 @@ func newClient() client {
 		read:  make(chan string),
 		write: make(chan string),
 	}
-}
-
-func (c client) disconnect() {
-	c.writeToConn("QUIT Bye")
-	os.Exit(0)
 }
 
 func (c client) login(defaultUsername string, OAUTHToken string) {
