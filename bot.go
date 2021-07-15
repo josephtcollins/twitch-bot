@@ -80,7 +80,7 @@ func handleReader(c client, username string, customListener func(string, string)
 
 func handleWriter(c client, username string) {
 	reader := bufio.NewReader(os.Stdin)
-	twitchChannel := username
+	twitchChannel := ""
 
 	for {
 		// attempting to get reliable leading text for write
@@ -94,36 +94,53 @@ func handleWriter(c client, username string) {
 		}
 
 		action, content := splitFirstWordFromRest(text)
+		switchAction := supportedActions[strings.ToLower(action)]
 
-		switch supportedActions[strings.ToLower(action)] {
-		case "JOIN":
-			printAndWriteMessage("PART #"+twitchChannel, c)
-			message := "JOIN #" + content
-			twitchChannel = content
-			printAndWriteMessage(message, c)
-		case "LEAVE":
-			message := "PART #" + twitchChannel
-			twitchChannel = ""
-			printAndWriteMessage(message, c)
-		case "PRIVMSG":
-			message := "PRIVMSG #" + twitchChannel + " :" + content
-			printAndWriteMessage(message, c)
-		case "WHISPER":
-			// I'm likely getting blocked either for being a bot or hitting rate limits
-			receivingUser, text := splitFirstWordFromRest(content)
-			message := fmt.Sprintf("PRIVMSG #%s :/w %s %s", username, receivingUser, text)
-			printAndWriteMessage(message, c)
-		case "QUIT":
-			fmt.Println("Exiting program.")
-			printAndWriteMessage("QUIT Goodbye", c)
-			return
-		case "HELP":
-			fmt.Println(welcomeMessage)
-			fmt.Println("Current channel:", twitchChannel)
-		default:
-			fmt.Println("Command not recognized! Type \"help\" for info.")
+		messagesToWrite := getFormattedWriteMessage(switchAction, content, username, twitchChannel)
+		for _, m := range messagesToWrite {
+			printAndWriteMessage(m, c)
 		}
+		twitchChannel = getUpdatedChannel(switchAction, content, twitchChannel)
 	}
+}
+
+func getUpdatedChannel(action string, content string, channel string) string {
+	switch action {
+	case "JOIN":
+		return content
+	case "PART":
+		return ""
+	default:
+		return channel
+	}
+}
+
+func getFormattedWriteMessage(action string, content string, username string, twitchChannel string) []string {
+	var slice = []string{}
+	switch action {
+	case "JOIN":
+		// leave current channel before joining new
+		slice = append(slice, "PART #"+twitchChannel)
+		slice = append(slice, "JOIN #"+content)
+	case "LEAVE":
+		slice = append(slice, "PART #"+twitchChannel)
+	case "PRIVMSG":
+		slice = append(slice, "PRIVMSG #"+twitchChannel+" :"+content)
+	case "WHISPER":
+		// This won't work:
+		// I'm getting blocked for being a bot/hitting rate limits
+		receivingUser, text := splitFirstWordFromRest(content)
+		slice = append(slice, fmt.Sprintf("PRIVMSG #%s :/w %s %s", username, receivingUser, text))
+	case "QUIT":
+		fmt.Println("Exiting program.")
+		slice = append(slice, "QUIT")
+	case "HELP":
+		fmt.Println(welcomeMessage)
+		fmt.Println("Current channel:", twitchChannel)
+	default:
+		fmt.Println("Command not recognized! Type \"help\" for info.")
+	}
+	return slice
 }
 
 func splitFirstWordFromRest(text string) (string, string) {
